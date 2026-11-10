@@ -23,10 +23,8 @@ docker build -t despacho .
 Depois, para trabalhar, abra um terminal dentro do contêiner com a pasta do kit montada em `/trabalho`:
 
 ```
-docker run --rm -it -v "$PWD":/trabalho despacho
+docker run --rm -it -v ${PWD}:/trabalho despacho
 ```
-
-No PowerShell do Windows, troque `"$PWD"` por `"${PWD}"`. Dentro do contêiner, o servidor, o corretor e os bots de referência estão no PATH:
 
 ```
 cd ingenuo
