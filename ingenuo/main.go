@@ -136,17 +136,19 @@ func removerExpirados(turno int) {
 func jogarTurno(turno int, ambulancias []Ambulancia) {
 	for _, a := range ambulancias {
 		mov := "P"
-		if a.Livre {
+		if a.Livre { //acha o Melhor Chamado
 			melhor := -1
+			dist_melhor := 0
 			for i, c := range chamados {
-				if melhor == -1 || distancia(a.X, a.Y, c.X, c.Y) < distancia(a.X, a.Y, chamados[melhor].X, chamados[melhor].Y) {
+				if melhor == -1 || distancia(a.X, a.Y, c.X, c.Y) < dist_melhor {
 					melhor = i
+					dist_melhor = distancia(a.X, a.Y, c.X, c.Y)
 				}
 			}
 			if melhor != -1 {
 				mov = direcao(a.X, a.Y, chamados[melhor].X, chamados[melhor].Y)
 			}
-		} else {
+		} else { //volta para Hospital
 			melhor := 0
 			for i, h := range hospitais {
 				if distancia(a.X, a.Y, h.X, h.Y) < distancia(a.X, a.Y, hospitais[melhor].X, hospitais[melhor].Y) {
@@ -180,6 +182,9 @@ func main() {
 		n := inteiro(lerCampos()[1]) // CHAMADOS n
 		for i := 0; i < n; i++ {
 			c := lerCampos()
+
+			//campos: | ID | x | y | valor | prazo |
+
 			chamados = append(chamados, Chamado{inteiro(c[0]), inteiro(c[1]), inteiro(c[2]), inteiro(c[3]), inteiro(c[4])})
 		}
 
