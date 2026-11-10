@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Central de Despacho: replay</title>
+<style>
+:root {
+  --fundo: #f4f3ef;
+  --painel: #ffffff;
+  --texto: #1d1f22;
+  --suave: #5d636b;
+  --borda: #d9d7d0;
+  --rua: #ece9e1;
+  --quarteirao: #b9b4a8;
+  --hospital: #1f7a4d;
+  --grave: #d1342f;
+  --comum: #c9a227;
+  --destaque: #2e5aac;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #15171a;
+    --painel: #1e2125;
+    --texto: #e6e4df;
+    --suave: #9aa0a8;
+    --borda: #33373d;
+    --rua: #23262b;
+    --quarteirao: #474b52;
+    --hospital: #3fbf7f;
+    --grave: #ff5a52;
+    --comum: #d8b13a;
+    --destaque: #7aa2f7;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+}
+header {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: var(--painel);
+  border-bottom: 1px solid var(--borda);
+}
+header h1 { font-size: 16px; margin: 0 12px 0 0; font-weight: 600; }
+button, select, input[type=file]::file-selector-button {
+  font: inherit;
+  color: var(--texto);
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button:disabled { opacity: .5; cursor: default; }
+#turno { flex: 1 1 200px; min-width: 120px; }
+#rotuloTurno { font-variant-numeric: tabular-nums; min-width: 110px; }
+main { position: relative; overflow: hidden; }
+canvas#tela { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+canvas#tela.arrastando { cursor: grabbing; }
+#vazio {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--suave); text-align: center; padding: 16px;
+}
+#vazio.solto { outline: 3px dashed var(--destaque); outline-offset: -16px; }
+aside {
+  background: var(--painel);
+  border-left: 1px solid var(--borda);
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); margin: 16px 0 6px; }
+aside h2:first-child { margin-top: 0; }
+.equipe { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.cor { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.equipe .nome { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.equipe .pontos { font-variant-numeric: tabular-nums; font-weight: 600; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; }
+dt { color: var(--suave); }
+dd { margin: 0; font-variant-numeric: tabular-nums; }
+.legenda { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.amostra { width: 14px; height: 14px; flex: none; display: inline-block; }
+#mensagem { color: var(--grave); }
+@media (max-width: 700px) {
+  body { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  header { grid-column: 1; }
+  aside { border-left: 0; border-top: 1px solid var(--borda); max-height: 35vh; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Central de Despacho</h1>
+  <input type="file" id="arquivo" accept=".jsonl,.json,application/json">
+  <button id="tocar" disabled>Reproduzir</button>
+  <button id="voltar" disabled title="Turno anterior">&lt;</button>
+  <button id="avancar" disabled title="Próximo turno">&gt;</button>
+  <input type="range" id="turno" min="1" max="1" value="1" disabled>
+  <span id="rotuloTurno">turno -</span>
+  <select id="velocidade" title="Turnos por segundo">
+    <option value="5">5 turnos/s</option>
+    <option value="15">15 turnos/s</option>
+    <option value="30" selected>30 turnos/s</option>
+    <option value="60">60 turnos/s</option>
+    <option value="120">120 turnos/s</option>
+  </select>
+  <button id="ajustar" disabled>Ajustar mapa</button>
+</header>
+<main>
+  <canvas id="tela"></canvas>
+  <div id="vazio">Escolha um arquivo de replay gravado pelo servidor (opção <code>-replay</code>)<br>ou arraste o arquivo para cá.</div>
+</main>
+<aside>
+  <h2>Placar</h2>
+  <div id="placar"></div>
+  <h2>Partida</h2>
+  <dl id="dados"></dl>
+  <h2>Legenda</h2>
+  <div class="legenda"><span class="amostra" style="background:var(--grave)"></span>chamado grave (valor 60 ou mais)</div>
+  <div class="legenda"><span class="amostra" style="background:var(--comum)"></span>chamado comum</div>
+  <div class="legenda"><span class="amostra" style="background:var(--hospital)"></span>hospital</div>
+  <div class="legenda"><span class="amostra" style="background:var(--quarteirao)"></span>bloqueio</div>
+  <div class="legenda"><span class="amostra" style="border:2px solid var(--suave);border-radius:50%"></span>ambulância livre</div>
+  <div class="legenda"><span class="amostra" style="background:var(--suave);border-radius:50%"></span>ambulância ocupada</div>
+  <h2>Comandos</h2>
+  <p style="margin:0;color:var(--suave)">Roda do mouse aproxima e afasta. Arraste para mover o mapa. Espaço reproduz ou pausa; setas mudam de turno.</p>
+  <p id="mensagem"></p>
+</aside>
+<script>
+"use strict";
+
+const CORES_EQUIPES = ["#2e6fdb", "#e0731f", "#8e44ad", "#16a085", "#c0392b", "#7f8c8d", "#d4ac0d", "#2c3e50"];
+const NUNCA = 65535;
+
+const el = id => document.getElementById(id);
+const tela = el("tela");
+const ctx = tela.getContext("2d");
+
+let jogo = null;          // dados da partida carregada
+let turno = 1;
+let tocando = false;
+let ultimoQuadro = 0;
+let acumulado = 0;
+let vista = { escala: 1, ox: 0, oy: 0 }; // ox, oy: célula no canto superior esquerdo
+
+function cssVar(nome) {
+  return getComputedStyle(document.documentElement).getPropertyValue(nome).trim();
+}
+
+function rgb(cor) {
+  const c = document.createElement("canvas").getContext("2d");
+  c.fillStyle = cor;
+  const h = c.fillStyle; // normaliza para #rrggbb
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+}
+
+// ---------- leitura do replay ----------
+
+function carregarTexto(texto) {
+  const linhas = texto.split("\n").filter(l => l.trim() !== "");
+  if (linhas.length < 2) throw new Error("arquivo sem turnos");
+  const cab = JSON.parse(linhas[0]);
+  if (!cab.largura || !cab.altura) throw new Error("cabeçalho do replay inválido");
+
+  const turnos = linhas.length - 1;
+  // Primeira passada: conta chamados e ambulâncias para alocar os vetores.
+  const registros = new Array(turnos);
+  let totalChamados = 0;
+  for (let i = 0; i < turnos; i++) {
+    const r = JSON.parse(linhas[i + 1]);
+    registros[i] = r;
+    totalChamados += (r.novos || []).length;
+  }
+  const nAmbs = (registros[0].ambs || []).length;
+
+  const cx = new Uint16Array(totalChamados);
+  const cy = new Uint16Array(totalChamados);
+  const cv = new Uint8Array(totalChamados);
+  const cIni = new Uint16Array(totalChamados);
+  const cPrazo = new Uint16Array(totalChamados);
+  const cRec = new Uint16Array(totalChamados).fill(NUNCA);
+  const porId = new Map();
+  const graves = [];
+  const ambs = new Int16Array(turnos * nAmbs * 4); // equipe, x, y, ocupada
+  const placar = [];
+
+  let n = 0;
+  for (let i = 0; i < turnos; i++) {
+    const r = registros[i];
+    const t = r.t;
+    for (const c of r.novos || []) {
+      porId.set(c[0], n);
+      cx[n] = c[1]; cy[n] = c[2]; cv[n] = c[3];
+      cIni[n] = t; cPrazo[n] = Math.min(c[4], NUNCA - 1);
+      if (c[3] >= 60) graves.push(n);
+      n++;
+    }
+    for (const id of r.recolhidos || []) {
+      const k = porId.get(id);
+      if (k !== undefined) cRec[k] = t;
+    }
+    const a = r.ambs || [];
+    for (let j = 0; j < nAmbs && j < a.length; j++) {
+      const b = (i * nAmbs + j) * 4;
+      ambs[b] = a[j][0]; ambs[b + 1] = a[j][2]; ambs[b + 2] = a[j][3]; ambs[b + 3] = a[j][4];
+    }
+    placar.push(r.placar || []);
+    registros[i] = null;
+  }
+
+  return {
+    cab, turnos, primeiro: registros.length ? 1 : 0, nAmbs,
+    cx, cy, cv, cIni, cPrazo, cRec, total: n, graves: Uint32Array.from(graves),
+    ambs, placar,
+    largura: cab.largura, altura: cab.altura,
+    nEquipes: cab.equipes || (placar[0] || []).length,
+    bots: cab.bots || [],
+  };
+}
+
+// ---------- camadas ----------
+
+let camadaMapa = null;    // ruas, quarteirões e hospitais, desenhada uma vez
+let camadaChamados = null;
+let imgChamados = null;
+
+function montarMapa() {
+  const { largura: L, altura: A } = jogo;
+  camadaMapa = document.createElement("canvas");
+  camadaMapa.width = L; camadaMapa.height = A;
+  const c = camadaMapa.getContext("2d");
+  c.fillStyle = cssVar("--rua");
+  c.fillRect(0, 0, L, A);
+  c.fillStyle = cssVar("--quarteirao");
+  for (const r of jogo.cab.bloqueios || []) {
+    c.fillRect(r[0], r[1], r[2] - r[0] + 1, r[3] - r[1] + 1);
+  }
+  camadaChamados = document.createElement("canvas");
+  camadaChamados.width = L; camadaChamados.height = A;
+  imgChamados = camadaChamados.getContext("2d").createImageData(L, A);
+}
+
+let corGrave, corComum;
+
+// Um chamado aparece no fim do turno t se já existia, ainda não expirou
+// (o prazo é o último turno em que pode ser recolhido) e ninguém o recolheu.
+function desenharChamados(t) {
+  const d = imgChamados.data;
+  d.fill(0);
+  const L = jogo.largura;
+  let abertos = 0, graves = 0;
+  const { cx, cy, cv, cIni, cPrazo, cRec, total } = jogo;
+  for (let i = 0; i < total; i++) {
+    if (cIni[i] > t) break; // chamados estão em ordem de criação
+    if (cPrazo[i] <= t || cRec[i] <= t) continue;
+    abertos++;
+    if (cv[i] >= 60) { graves++; continue; } // graves vão por cima, maiores
+    const p = (cy[i] * L + cx[i]) * 4;
+    d[p] = corComum[0]; d[p + 1] = corComum[1]; d[p + 2] = corComum[2]; d[p + 3] = 255;
+  }
+  camadaChamados.getContext("2d").putImageData(imgChamados, 0, 0);
+  return { abertos, graves };
+}
+
+// ---------- desenho ----------
+
+function redimensionar() {
+  const r = tela.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  tela.width = Math.max(1, Math.round(r.width * dpr));
+  tela.height = Math.max(1, Math.round(r.height * dpr));
+}
+
+function ajustarVista() {
+  if (!jogo) return;
+  const e = Math.min(tela.width / jogo.largura, tela.height / jogo.altura);
+  vista.escala = e;
+  vista.ox = (jogo.largura - tela.width / e) / 2;
+  vista.oy = (jogo.altura - tela.height / e) / 2;
+}
+
+let estatTurno = { abertos: 0, graves: 0 };
+let turnoDesenhado = -1;
+
+function desenhar() {
+  if (!jogo) return;
+  if (turnoDesenhado !== turno) {
+    estatTurno = desenharChamados(turno);
+    turnoDesenhado = turno;
+  }
+  const { escala: e, ox, oy } = vista;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = cssVar("--fundo");
+  ctx.fillRect(0, 0, tela.width, tela.height);
+  ctx.imageSmoothingEnabled = false;
+  ctx.setTransform(e, 0, 0, e, -ox * e, -oy * e);
+  ctx.drawImage(camadaMapa, 0, 0);
+  ctx.drawImage(camadaChamados, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  const dpr = window.devicePixelRatio || 1;
+  const px = (x) => (x + 0.5 - ox) * e;
+  const py = (y) => (y + 0.5 - oy) * e;
+
+  // Chamados graves: quadrado com tamanho mínimo em pixels, para não sumirem
+  // entre os comuns quando o mapa está afastado.
+  const tg = Math.max(3 * dpr, e);
+  ctx.fillStyle = cssVar("--grave");
+  for (const i of jogo.graves) {
+    if (jogo.cIni[i] > turno) break;
+    if (jogo.cPrazo[i] <= turno || jogo.cRec[i] <= turno) continue;
+    const x = px(jogo.cx[i]), y = py(jogo.cy[i]);
+    if (x < -tg || y < -tg || x > tela.width + tg || y > tela.height + tg) continue;
+    ctx.fillRect(x - tg / 2, y - tg / 2, tg, tg);
+  }
+
+  // Hospitais: cruz com tamanho mínimo em pixels.
+  const th = Math.max(5 * dpr, e * 0.9);
+  ctx.fillStyle = cssVar("--hospital");
+  for (const h of jogo.cab.hospitais || []) {
+    const x = px(h[0]), y = py(h[1]);
+    ctx.fillRect(x - th, y - th / 3, 2 * th, 2 * th / 3);
+    ctx.fillRect(x - th / 3, y - th, 2 * th / 3, 2 * th);
+  }
+
+  // Ambulâncias: anel quando livre, disco quando ocupada.
+  const ra = Math.max(3 * dpr, e * 0.45);
+  const base = (turno - 1) * jogo.nAmbs * 4;
+  ctx.lineWidth = Math.max(1.5 * dpr, ra / 3);
+  for (let j = 0; j < jogo.nAmbs; j++) {
+    const b = base + j * 4;
+    const eq = jogo.ambs[b], x = px(jogo.ambs[b + 1]), y = py(jogo.ambs[b + 2]);
+    if (x < -ra || y < -ra || x > tela.width + ra || y > tela.height + ra) continue;
+    const cor = CORES_EQUIPES[eq % CORES_EQUIPES.length];
+    ctx.beginPath();
+    ctx.arc(x, y, ra, 0, 2 * Math.PI);
+    if (jogo.ambs[b + 3]) {
+      ctx.fillStyle = cor;
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = cor;
+      ctx.stroke();
+    }
+  }
+  atualizarPainel();
+}
+
+function atualizarPainel() {
+  el("rotuloTurno").textContent = `turno ${turno} de ${jogo.turnos}`;
+  el("turno").value = turno;
+  const pl = jogo.placar[turno - 1] || [];
+  const caixa = el("placar");
+  caixa.replaceChildren();
+  for (let i = 0; i < jogo.nEquipes; i++) {
+    const linha = document.createElement("div");
+    linha.className = "equipe";
+    const cor = document.createElement("span");
+    cor.className = "cor";
+    cor.style.background = CORES_EQUIPES[i % CORES_EQUIPES.length];
+    const nome = document.createElement("span");
+    nome.className = "nome";
+    nome.textContent = `${i}: ${jogo.bots[i] || "equipe " + i}`;
+    nome.title = nome.textContent;
+    const pts = document.createElement("span");
+    pts.className = "pontos";
+    pts.textContent = (pl[i] ?? 0).toLocaleString("pt-BR");
+    linha.append(cor, nome, pts);
+    caixa.append(linha);
+  }
+  let livres = 0;
+  const base = (turno - 1) * jogo.nAmbs * 4;
+  for (let j = 0; j < jogo.nAmbs; j++) if (!jogo.ambs[base + j * 4 + 3]) livres++;
+  const dados = [
+    ["Cenário", `${jogo.cab.cenario}, etapa ${jogo.cab.etapa}`],
+    ["Grade", `${jogo.largura} x ${jogo.altura}`],
+    ["Chamados abertos", estatTurno.abertos.toLocaleString("pt-BR")],
+    ["Graves abertos", estatTurno.graves.toLocaleString("pt-BR")],
+    ["Ambulâncias livres", `${livres} de ${jogo.nAmbs}`],
+    ["Chamados na partida", jogo.total.toLocaleString("pt-BR")],
+  ];
+  const dl = el("dados");
+  dl.replaceChildren();
+  for (const [k, v] of dados) {
+    const dt = document.createElement("dt"); dt.textContent = k;
+    const dd = document.createElement("dd"); dd.textContent = v;
+    dl.append(dt, dd);
+  }
+}
+
+// ---------- reprodução ----------
+
+function irPara(t) {
+  if (!jogo) return;
+  turno = Math.max(1, Math.min(jogo.turnos, t));
+  desenhar();
+}
+
+function laco(agora) {
+  if (!tocando) return;
+  const dt = ultimoQuadro ? (agora - ultimoQuadro) / 1000 : 0;
+  ultimoQuadro = agora;
+  acumulado += dt * Number(el("velocidade").value);
+  const passos = Math.floor(acumulado);
+  if (passos > 0) {
+    acumulado -= passos;
+    if (turno + passos >= jogo.turnos) {
+      irPara(jogo.turnos);
+      alternar(false);
+      return;
+    }
+    irPara(turno + passos);
+  }
+  requestAnimationFrame(laco);
+}
+
+function alternar(ligar) {
+  tocando = ligar ?? !tocando;
+  el("tocar").textContent = tocando ? "Pausar" : "Reproduzir";
+  if (tocando) {
+    if (turno >= jogo.turnos) irPara(1);
+    ultimoQuadro = 0; acumulado = 0;
+    requestAnimationFrame(laco);
+  }
+}
+
+// ---------- entrada ----------
+
+function abrir(texto, nome) {
+  el("mensagem").textContent = "";
+  try {
+    jogo = carregarTexto(texto);
+  } catch (err) {
+    el("mensagem").textContent = `Não consegui ler ${nome}: ${err.message}`;
+    return;
+  }
+  corGrave = rgb(cssVar("--grave"));
+  corComum = rgb(cssVar("--comum"));
+  montarMapa();
+  el("vazio").style.display = "none";
+  for (const id of ["tocar", "voltar", "avancar", "turno", "ajustar"]) el(id).disabled = false;
+  el("turno").max = jogo.turnos;
+  turnoDesenhado = -1;
+  redimensionar();
+  ajustarVista();
+  irPara(1);
+}
+
+el("arquivo").addEventListener("change", async ev => {
+  const f = ev.target.files[0];
+  if (f) abrir(await f.text(), f.name);
+});
+const vazio = el("vazio");
+document.addEventListener("dragover", ev => { ev.preventDefault(); vazio.classList.add("solto"); });
+document.addEventListener("dragleave", () => vazio.classList.remove("solto"));
+document.addEventListener("drop", async ev => {
+  ev.preventDefault();
+  vazio.classList.remove("solto");
+  const f = ev.dataTransfer.files[0];
+  if (f) abrir(await f.text(), f.name);
+});
+
+el("tocar").addEventListener("click", () => alternar());
+el("voltar").addEventListener("click", () => { alternar(false); irPara(turno - 1); });
+el("avancar").addEventListener("click", () => { alternar(false); irPara(turno + 1); });
+el("turno").addEventListener("input", ev => irPara(Number(ev.target.value)));
+el("ajustar").addEventListener("click", () => { ajustarVista(); desenhar(); });
+document.addEventListener("keydown", ev => {
+  if (!jogo || ev.target.tagName === "SELECT") return;
+  if (ev.key === " ") { ev.preventDefault(); alternar(); }
+  else if (ev.key === "ArrowLeft") { alternar(false); irPara(turno - (ev.shiftKey ? 10 : 1)); }
+  else if (ev.key === "ArrowRight") { alternar(false); irPara(turno + (ev.shiftKey ? 10 : 1)); }
+});
+
+// Zoom em torno do cursor e arraste.
+tela.addEventListener("wheel", ev => {
+  if (!jogo) return;
+  ev.preventDefault();
+  const dpr = window.devicePixelRatio || 1;
+  const mx = ev.offsetX * dpr, my = ev.offsetY * dpr;
+  const gx = vista.ox + mx / vista.escala, gy = vista.oy + my / vista.escala;
+  const fator = Math.exp(-ev.deltaY * 0.0015);
+  vista.escala = Math.min(64, Math.max(0.05, vista.escala * fator));
+  vista.ox = gx - mx / vista.escala;
+  vista.oy = gy - my / vista.escala;
+  desenhar();
+}, { passive: false });
+let arraste = null;
+tela.addEventListener("pointerdown", ev => {
+  arraste = { x: ev.clientX, y: ev.clientY, ox: vista.ox, oy: vista.oy };
+  tela.setPointerCapture(ev.pointerId);
+  tela.classList.add("arrastando");
+});
+tela.addEventListener("pointermove", ev => {
+  if (!arraste) return;
+  const dpr = window.devicePixelRatio || 1;
+  vista.ox = arraste.ox - (ev.clientX - arraste.x) * dpr / vista.escala;
+  vista.oy = arraste.oy - (ev.clientY - arraste.y) * dpr / vista.escala;
+  desenhar();
+});
+tela.addEventListener("pointerup", () => { arraste = null; tela.classList.remove("arrastando"); });
+window.addEventListener("resize", () => { redimensionar(); desenhar(); });
+
+// Replay por endereço (?replay=arquivo.jsonl&turno=N), quando a página é
+// servida por HTTP; ao abrir o arquivo direto do disco, use o seletor.
+const params = new URLSearchParams(location.search);
+if (params.get("replay")) {
+  fetch(params.get("replay"))
+    .then(r => { if (!r.ok) throw new Error(r.status + " " + r.statusText); return r.text(); })
+    .then(texto => {
+      abrir(texto, params.get("replay"));
+      if (params.get("turno")) irPara(Number(params.get("turno")));
+      if (params.get("zoom")) {
+        const [x, y, e] = params.get("zoom").split(",").map(Number);
+        vista.escala = e;
+        vista.ox = x - tela.width / e / 2;
+        vista.oy = y - tela.height / e / 2;
+        desenhar();
+      }
+      document.body.dataset.pronto = "1";
+    })
+    .catch(err => { el("mensagem").textContent = "Não consegui carregar o replay: " + err.message; });
+}
+</script>
+</body>
+</html>
