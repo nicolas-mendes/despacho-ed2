@@ -1,0 +1,59 @@
+{
+  "entrega": ".",
+  "etapa": 1,
+  "pontos": 45,
+  "maximo": 45,
+  "compilou": true,
+  "testes": [
+    {
+      "etapa": 1,
+      "nome": "Protocolo",
+      "criterio": "nenhuma infração em 10 partidas do cenário pequeno",
+      "valor": 10,
+      "pontos": 10,
+      "motivo": "nenhuma infração",
+      "pontuacao": false
+    },
+    {
+      "etapa": 1,
+      "nome": "Tempo",
+      "criterio": "p99 do processador por turno até 4,0 vezes o do bot indexado (mediana de 10 partidas do cenário estresse), sem passar do teto em mais de 10 turnos por partida",
+      "valor": 15,
+      "pontos": 15,
+      "motivo": "razão mediana 0,8 (de 0,6 a 0,9); exigido até 4,0",
+      "pontuacao": false
+    },
+    {
+      "etapa": 1,
+      "nome": "Bot ingênuo",
+      "criterio": "soma de pontos pelo menos 10% maior que a do bot ingênuo em 10 partidas do cenário medio",
+      "valor": 10,
+      "pontos": 10,
+      "motivo": "soma 85359 x 46352 (+84.2%; exigido +10%)",
+      "pontuacao": true
+    },
+    {
+      "etapa": 1,
+      "nome": "Bot indexado",
+      "criterio": "soma de pontos pelo menos 2% maior que a do bot indexado em 10 partidas do cenário estresse",
+      "valor": 10,
+      "pontos": 10,
+      "motivo": "soma 518615 x 432283 (+20.0%; exigido +2%)",
+      "pontuacao": true
+    }
+  ],
+  "alertas": null,
+  "sementes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "quando": "11/11/2026 14:11"
+}
