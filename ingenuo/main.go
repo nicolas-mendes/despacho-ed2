@@ -35,16 +35,18 @@ type Tabela struct {
 }
 
 const (
-	tam_bloco         = 20                                                  // quantidade de celulas no lado do bloco (total_celulas = tam_bloco²)
-	chamado_barato    = 10                                                  // valores abaixo desse são ignorados
+	tam_bloco         = 50                                                  // quantidade de celulas no lado do bloco (total_celulas = tam_bloco²)
+	chamado_barato    = 14                                                  // valores abaixo desse são ignorados
 	distancia_worth   = 3                                                   // quantas vezes a distancia de um novo chamado pode ser maior para compensar a troca para o atual
 	valor_worth       = 3                                                   // quantas vezes o valor de um novo chamado deve ser maior para compensar a troca para o atual
 	valor_max_chamado = 100                                                 // valor máximo de um chamado
 	valor_min_worth   = (valor_max_chamado + valor_worth - 1) / valor_worth // valor máximo de um chamado atual pode ter para poder haver um melhor conforme prioridade
 
 	// descarta chamados que valem menos 1/n do atual se não tiverem mais perto que 1/m do atual
-	descarte_fator_val  = valor_worth - 1
-	descarte_fator_dist = distancia_worth + 1
+	descarte_fator_val  = 2
+	descarte_fator_dist = 6
+	// descarte_fator_val  = valor_worth - 1
+	// descarte_fator_dist = distancia_worth + 1
 )
 
 var (
